@@ -1,2 +1,1567 @@
 
 </body></html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracker de Inversiones</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@300;400;500&amp;display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d12;
+    --surface: #111620;
+    --surface2: #161d2a;
+    --border: #1e2a3a;
+    --accent: #00d4aa;
+    --accent2: #f7c948;
+    --accent3: #ff6b6b;
+    --text: #e8edf5;
+    --muted: #5a6a80;
+    --ok: #00d4aa;
+    --pending: #f7c948;
+    --reinverted: #7c9ef7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container { max-width: 1300px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  header {
+    padding: 40px 0 30px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .logo { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 4px; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+  h1 { font-family: 'Syne', sans-serif; font-size: clamp(28px, 4vw, 48px); font-weight: 800; line-height: 1; letter-spacing: -1px; }
+  h1 span { color: var(--accent); }
+  .total-badge {
+    background: linear-gradient(135deg, var(--accent) 0%, #00a882 100%);
+    color: #000; padding: 14px 28px; border-radius: 4px;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px;
+    letter-spacing: -1px; white-space: nowrap;
+  }
+  .total-badge small { display: block; font-size: 10px; font-weight: 600; letter-spacing: 2px; opacity: 0.7; margin-bottom: 2px; }
+
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 48px; }
+  .card { background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 6px; position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s; }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--card-accent, var(--accent)); }
+  .card-label { font-size: 9px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+  .card-value { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 700; color: var(--card-color, var(--text)); }
+  .card-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+  .platform-section { margin-bottom: 48px; animation: fadeUp 0.4s ease both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .platform-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
+  .platform-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 12px; }
+  .platform-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--p-color, var(--accent)); box-shadow: 0 0 12px var(--p-color, var(--accent)); }
+  .platform-stats { display: flex; gap: 20px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+  .platform-stats span { display: flex; gap: 6px; align-items: center; }
+  .platform-stats b { color: var(--text); font-size: 13px; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead tr { background: var(--surface2); border-bottom: 1px solid var(--border); }
+  th { padding: 10px 14px; text-align: left; font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; font-weight: 500; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  td { padding: 12px 14px; vertical-align: middle; }
+
+  /* Inline edit */
+  td.editable { cursor: text; position: relative; }
+  td.editable:hover::after { content: '✏'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 9px; color: var(--muted); opacity: 0.5; }
+  td.editable.editing { background: rgba(0,212,170,0.07); box-shadow: inset 0 0 0 1px var(--accent); }
+  td.editable input, td.editable select.inline-sel {
+    background: transparent; border: none; outline: none; color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; width: 100%; min-width: 80px;
+  }
+  select.inline-sel { background: var(--surface2); border: 1px solid var(--accent); padding: 2px 4px; border-radius: 3px; }
+
+  .asset-tag { display: inline-block; background: rgba(0,212,170,0.1); color: var(--accent); border: 1px solid rgba(0,212,170,0.25); padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 500; letter-spacing: 1px; }
+  .asset-tag.bnb { background: rgba(247,201,72,0.1); color: var(--accent2); border-color: rgba(247,201,72,0.25); }
+  .asset-tag.usdt { background: rgba(124,158,247,0.1); color: var(--reinverted); border-color: rgba(124,158,247,0.25); }
+
+  .status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 1px; font-weight: 600; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; }
+  .status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .status.ok { color: var(--ok); background: rgba(0,212,170,0.1); }
+  .status.pendiente { color: var(--pending); background: rgba(247,201,72,0.1); }
+  .status.reinvertido { color: var(--reinverted); background: rgba(124,158,247,0.1); }
+
+  .gain { color: var(--ok); }
+  .loss { color: var(--accent3); }
+  .neutral { color: var(--muted); }
+
+  .btn-del { background: rgba(255,107,107,0.1); color: var(--accent3); border: 1px solid rgba(255,107,107,0.25); padding: 4px 10px; border-radius: 3px; font-size: 10px; cursor: pointer; font-family: 'JetBrains Mono', monospace; transition: background 0.15s; }
+  .btn-del:hover { background: rgba(255,107,107,0.25); }
+  .btn-edit { background: rgba(0,212,170,0.08); color: var(--accent); border: 1px solid rgba(0,212,170,0.2); padding: 4px 10px; border-radius: 3px; font-size: 10px; cursor: pointer; font-family: 'JetBrains Mono', monospace; transition: background 0.15s; margin-right: 4px; }
+  .btn-edit:hover { background: rgba(0,212,170,0.2); }
+
+  .totals-row td { font-weight: 600; background: var(--surface2); border-top: 1px solid var(--border); font-size: 12px; }
+
+  /* Hint bar */
+  .hint-bar {
+    display: flex; align-items: center; gap: 20px; padding: 10px 16px;
+    background: rgba(0,212,170,0.04); border: 1px solid rgba(0,212,170,0.1);
+    border-radius: 5px; margin-bottom: 24px; font-size: 10px; color: var(--muted);
+    letter-spacing: 1px; flex-wrap: wrap;
+  }
+  .hint-bar kbd { background: var(--surface2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 3px; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+
+  /* Add form */
+  .add-section { background: var(--surface); border: 1px dashed var(--border); border-radius: 6px; padding: 28px; margin-top: 48px; margin-bottom: 48px; }
+  .add-section h2 { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .add-section h2::before { content: '+'; width: 24px; height: 24px; background: var(--accent); color: #000; border-radius: 3px; display: grid; place-items: center; font-size: 16px; font-weight: 800; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .field label { display: block; font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; transition: border-color 0.2s; }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field select option { background: var(--surface2); }
+  .btn-add { background: var(--accent); color: #000; border: none; padding: 10px 24px; border-radius: 4px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: opacity 0.2s, transform 0.1s; }
+  .btn-add:hover { opacity: 0.85; transform: translateY(-1px); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.78);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-backdrop.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    width: 90%; max-width: 680px; max-height: 90vh; overflow-y: auto;
+    transform: translateY(24px);
+    transition: transform 0.22s cubic-bezier(.2,.8,.4,1);
+    position: relative;
+  }
+  .modal-backdrop.open .modal { transform: translateY(0); }
+  .modal-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--accent); }
+  .modal-sub { font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-bottom: 24px; }
+  .modal-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-save { background: var(--accent); color: #000; border: none; padding: 10px 28px; border-radius: 4px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; transition: opacity 0.2s; }
+  .btn-save:hover { opacity: 0.85; }
+  .btn-cancel { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 10px 20px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; cursor: pointer; transition: border-color 0.2s; }
+  .btn-cancel:hover { border-color: var(--accent3); color: var(--accent3); }
+  .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 3px; transition: color 0.15s; }
+  .modal-close:hover { color: var(--accent3); }
+
+
+  .countdown { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+  .countdown.urgent { color: var(--accent3); }
+  .countdown.soon   { color: var(--accent2); }
+  .countdown.ok     { color: var(--ok); }
+  .countdown.done   { color: var(--muted); }
+
+  footer { padding: 24px 0; border-top: 1px solid var(--border); text-align: center; font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-top: 20px; }
+
+  /* Export bar */
+  .export-bar {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    background: rgba(247,201,72,0.05); border: 1px solid rgba(247,201,72,0.18);
+    border-radius: 6px; padding: 14px 20px; margin-bottom: 40px;
+  }
+  .export-bar-info { font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .export-bar-info b { color: var(--accent2); }
+  .btn-export {
+    background: linear-gradient(135deg, var(--accent2), #e0b030);
+    color: #000; border: none; padding: 10px 22px; border-radius: 4px;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: 0.5px; cursor: pointer; white-space: nowrap;
+    transition: opacity 0.2s, transform 0.1s; display: flex; align-items: center; gap: 8px;
+  }
+  .btn-export:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn-export:active { transform: translateY(0); }
+  .export-flash {
+    font-size: 10px; color: var(--accent); letter-spacing: 2px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .export-flash.show { opacity: 1; }
+
+  /* ── LOGIN SCREEN ─────────────────────────────────────────────────────── */
+  .login-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-screen::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 44px 40px 36px;
+    width: 90%; max-width: 380px;
+    position: relative; z-index: 1;
+    animation: fadeUp 0.4s ease;
+  }
+  .login-box::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), #00a882);
+    border-radius: 12px 12px 0 0;
+  }
+  .login-logo {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 4px; color: var(--accent); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .login-title {
+    font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800;
+    letter-spacing: -0.5px; margin-bottom: 28px;
+  }
+  .login-title span { color: var(--accent); }
+  .login-field { margin-bottom: 14px; }
+  .login-field label {
+    display: block; font-size: 9px; letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .login-field input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 11px 14px; border-radius: 5px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; outline: none;
+    transition: border-color 0.2s;
+  }
+  .login-field input:focus { border-color: var(--accent); }
+  .btn-login {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), #00a882);
+    color: #000; border: none; padding: 12px; border-radius: 5px;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px;
+    letter-spacing: 1px; cursor: pointer; margin-top: 8px;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn-login:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn-login:active { transform: translateY(0); }
+  .login-error {
+    color: var(--accent3); font-size: 11px; letter-spacing: 1px;
+    margin-top: 12px; text-align: center; min-height: 16px;
+  }
+  .login-error.hidden { display: none; }
+  /* user badge in header */
+  .user-badge {
+    display: none; align-items: center; gap: 10px;
+    background: rgba(0,212,170,0.08); border: 1px solid rgba(0,212,170,0.2);
+    padding: 8px 14px; border-radius: 4px;
+    font-size: 11px; color: var(--accent); letter-spacing: 1px;
+  }
+  .user-badge.visible { display: flex; }
+  .btn-logout {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 10px; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace;
+    transition: color 0.15s; padding: 0;
+  }
+  .btn-logout:hover { color: var(--accent3); }
+  /* hide all edit controls when guest */
+  body.guest .btn-edit,
+  body.guest .btn-del,
+  body.guest td.editable,
+  body.guest .add-section,
+  body.guest .export-bar,
+  body.guest .hint-bar { display: none !important; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 20%{transform:translateX(-9px)}
+    40%{transform:translateX(9px)}  60%{transform:translateX(-6px)} 80%{transform:translateX(6px)}
+  }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div>
+      <div class="logo">⬡ Portfolio Tracker</div>
+      <h1>Mis <span>Inversiones</span></h1>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px;">
+      <div class="user-badge visible" id="user-badge">
+        🔓 <span id="badge-user">admin</span>
+        <button class="btn-logout" onclick="doLogout()">[ salir ]</button>
+      </div>
+      <div class="total-badge">
+      <small>GANANCIA TOTAL</small>
+      <span id="grand-total">$790.51</span>
+    </div>
+    </div>
+  </header>
+
+  <div class="summary-grid">
+    <div class="card" style="--card-accent:var(--accent);--card-color:var(--accent);">
+      <div class="card-label">Total Invertido</div>
+      <div class="card-value" id="sum-invested">$4831.36</div>
+      <div class="card-sub">Todas las plataformas</div>
+    </div>
+    <div class="card" style="--card-accent:var(--accent2);--card-color:var(--accent2);">
+      <div class="card-label">Retiro Total</div>
+      <div class="card-value" id="sum-retiro">$4092.53</div>
+      <div class="card-sub">Confirmados</div>
+    </div>
+    <div class="card" style="--card-accent:var(--ok);--card-color:var(--ok);">
+      <div class="card-label">Ganancias OK</div>
+      <div class="card-value" id="sum-gain">+$780.51</div>
+      <div class="card-sub">Finalizados</div>
+    </div>
+    <div class="card" style="--card-accent:var(--pending);">
+      <div class="card-label">Pendientes</div>
+      <div class="card-value" id="sum-pending">14</div>
+      <div class="card-sub">Inversiones activas</div>
+    </div>
+    <div class="card" style="--card-accent:var(--reinverted);">
+      <div class="card-label">Plataformas</div>
+      <div class="card-value" id="sum-platforms">5</div>
+      <div class="card-sub">USDC / USDT / BNB</div>
+    </div>
+  </div>
+
+  <div class="hint-bar">
+    <span>💡 EDICIÓN:</span>
+    <span><kbd>Doble clic</kbd> en cualquier celda → editar inline</span>
+    <span><kbd>Enter</kbd> guardar &nbsp;·&nbsp; <kbd>Esc</kbd> cancelar</span>
+    <span>&nbsp;·&nbsp; Botón <kbd>✎</kbd> abre el modal completo de la fila</span>
+  </div>
+
+  <div id="platforms-container"><div class="platform-section bitnest" style="animation-delay: 0s;">
+      <div class="platform-header">
+        <div class="platform-name" style="--p-color:#00d4aa"><span class="platform-dot"></span> Bitnest</div>
+        <div class="platform-stats">
+          <span>Invertido <b>$3230.36</b></span>
+          <span>Retiro <b>$3786.53</b></span>
+          <span>Ganancia <b class="gain">+$474.51</b></span>
+          <span>Pendientes <b>4</b></span>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Activo</th><th>Plazo</th><th>Fecha</th><th>Valor Invertido</th><th>Retiro Total</th><th>Ganancia</th><th>Estado</th><th>Vence en</th><th></th></tr></thead>
+        <tbody>
+          <tr data-id="1">
+        <td class="editable" data-field="asset" data-id="1" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="1" data-type="text" ondblclick="inlineEdit(this)">x 28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="1" data-type="text" ondblclick="inlineEdit(this)">01/01/26</td>
+        <td class="editable" data-field="valor" data-id="1" data-type="number" ondblclick="inlineEdit(this)"><b>$1342.98</b></td>
+        <td class="editable" data-field="retiro" data-id="1" data-type="number" ondblclick="inlineEdit(this)">$1665.29</td>
+        <td class="editable" data-field="ganancia" data-id="1" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$322.32</span></td>
+        <td class="editable" data-field="estado" data-id="1" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="countdown done">Finalizado</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(1)">✎</button>
+          <button class="btn-del" onclick="deleteRow(1)">✕</button>
+        </td>
+      </tr><tr data-id="2">
+        <td class="editable" data-field="asset" data-id="2" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="2" data-type="text" ondblclick="inlineEdit(this)">x 28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="2" data-type="text" ondblclick="inlineEdit(this)">01/01/26</td>
+        <td class="editable" data-field="valor" data-id="2" data-type="number" ondblclick="inlineEdit(this)"><b>$361.49</b></td>
+        <td class="editable" data-field="retiro" data-id="2" data-type="number" ondblclick="inlineEdit(this)">$448.24</td>
+        <td class="editable" data-field="ganancia" data-id="2" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$86.76</span></td>
+        <td class="editable" data-field="estado" data-id="2" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="countdown done">Finalizado</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(2)">✎</button>
+          <button class="btn-del" onclick="deleteRow(2)">✕</button>
+        </td>
+      </tr><tr data-id="6">
+        <td class="editable" data-field="asset" data-id="6" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="6" data-type="text" ondblclick="inlineEdit(this)">x 28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="6" data-type="text" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="valor" data-id="6" data-type="number" ondblclick="inlineEdit(this)"><b>$191.08</b></td>
+        <td class="editable" data-field="retiro" data-id="6" data-type="number" ondblclick="inlineEdit(this)">$236.94</td>
+        <td class="editable" data-field="ganancia" data-id="6" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$45.86</span></td>
+        <td class="editable" data-field="estado" data-id="6" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(6)">✎</button>
+          <button class="btn-del" onclick="deleteRow(6)">✕</button>
+        </td>
+      </tr><tr data-id="7">
+        <td class="editable" data-field="asset" data-id="7" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="7" data-type="text" ondblclick="inlineEdit(this)">x 28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="7" data-type="text" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="valor" data-id="7" data-type="number" ondblclick="inlineEdit(this)"><b>$489.35</b></td>
+        <td class="editable" data-field="retiro" data-id="7" data-type="number" ondblclick="inlineEdit(this)">$508.92</td>
+        <td class="editable" data-field="ganancia" data-id="7" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$19.57</span></td>
+        <td class="editable" data-field="estado" data-id="7" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(7)">✎</button>
+          <button class="btn-del" onclick="deleteRow(7)">✕</button>
+        </td>
+      </tr><tr data-id="8">
+        <td class="editable" data-field="asset" data-id="8" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="8" data-type="text" ondblclick="inlineEdit(this)">x 28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="8" data-type="text" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="valor" data-id="8" data-type="number" ondblclick="inlineEdit(this)"><b>$307.92</b></td>
+        <td class="editable" data-field="retiro" data-id="8" data-type="number" ondblclick="inlineEdit(this)">$381.83</td>
+        <td class="editable" data-field="ganancia" data-id="8" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="8" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(8)">✎</button>
+          <button class="btn-del" onclick="deleteRow(8)">✕</button>
+        </td>
+      </tr><tr data-id="18">
+        <td class="editable" data-field="asset" data-id="18" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="18" data-type="text" ondblclick="inlineEdit(this)">28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="18" data-type="text" ondblclick="inlineEdit(this)">11/05/26</td>
+        <td class="editable" data-field="valor" data-id="18" data-type="number" ondblclick="inlineEdit(this)"><b>$236.94</b></td>
+        <td class="editable" data-field="retiro" data-id="18" data-type="number" ondblclick="inlineEdit(this)">$293.81</td>
+        <td class="editable" data-field="ganancia" data-id="18" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="18" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown urgent">2d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(18)">✎</button>
+          <button class="btn-del" onclick="deleteRow(18)">✕</button>
+        </td>
+      </tr><tr data-id="19">
+        <td class="editable" data-field="asset" data-id="19" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="19" data-type="text" ondblclick="inlineEdit(this)">28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="19" data-type="text" ondblclick="inlineEdit(this)">16/05/26</td>
+        <td class="editable" data-field="valor" data-id="19" data-type="number" ondblclick="inlineEdit(this)"><b>$202.83</b></td>
+        <td class="editable" data-field="retiro" data-id="19" data-type="number" ondblclick="inlineEdit(this)">$251.50</td>
+        <td class="editable" data-field="ganancia" data-id="19" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="19" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown soon">7d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(19)">✎</button>
+          <button class="btn-del" onclick="deleteRow(19)">✕</button>
+        </td>
+      </tr><tr data-id="28">
+        <td class="editable" data-field="asset" data-id="28" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="28" data-type="text" ondblclick="inlineEdit(this)">14 Dias</td>
+        <td class="editable" data-field="fecha" data-id="28" data-type="text" ondblclick="inlineEdit(this)">01/06/26</td>
+        <td class="editable" data-field="valor" data-id="28" data-type="number" ondblclick="inlineEdit(this)"><b>$97.77</b></td>
+        <td class="editable" data-field="retiro" data-id="28" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="28" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="28" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">9d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(28)">✎</button>
+          <button class="btn-del" onclick="deleteRow(28)">✕</button>
+        </td>
+      </tr>
+          <tr class="totals-row">
+            <td colspan="3" style="color:var(--muted);font-size:10px;letter-spacing:2px;">TOTALES</td>
+            <td><b>$3230.36</b></td><td>—</td>
+            <td>$3786.53</td>
+            <td><span class="gain">+$474.51</span></td>
+            <td></td><td></td><td></td><td></td>
+          </tr>
+        </tbody>
+      </table></div></div><div class="platform-section cyrus" style="animation-delay: 0.08s;">
+      <div class="platform-header">
+        <div class="platform-name" style="--p-color:#7c9ef7"><span class="platform-dot"></span> Cyrus Finance</div>
+        <div class="platform-stats">
+          <span>Invertido <b>$1119.00</b></span>
+          <span>Retiro <b>$306.00</b></span>
+          <span>Ganancia <b class="gain">+$306.00</b></span>
+          <span>Pendientes <b>8</b></span>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Activo</th><th>Plazo</th><th>Fecha</th><th>Valor Invertido</th><th>Retiro Total</th><th>Ganancia</th><th>Estado</th><th>Vence en</th><th></th></tr></thead>
+        <tbody>
+          <tr data-id="9">
+        <td class="editable" data-field="asset" data-id="9" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="9" data-type="text" ondblclick="inlineEdit(this)">x 30 Dias</td>
+        <td class="editable" data-field="fecha" data-id="9" data-type="text" ondblclick="inlineEdit(this)">03/01/26</td>
+        <td class="editable" data-field="valor" data-id="9" data-type="number" ondblclick="inlineEdit(this)"><b>$78.00</b></td>
+        <td class="editable" data-field="retiro" data-id="9" data-type="number" ondblclick="inlineEdit(this)">$78.00</td>
+        <td class="editable" data-field="ganancia" data-id="9" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$78.00</span></td>
+        <td class="editable" data-field="estado" data-id="9" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="countdown done">Finalizado</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(9)">✎</button>
+          <button class="btn-del" onclick="deleteRow(9)">✕</button>
+        </td>
+      </tr><tr data-id="10">
+        <td class="editable" data-field="asset" data-id="10" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="10" data-type="text" ondblclick="inlineEdit(this)">x 30 Dias</td>
+        <td class="editable" data-field="fecha" data-id="10" data-type="text" ondblclick="inlineEdit(this)">03/01/26</td>
+        <td class="editable" data-field="valor" data-id="10" data-type="number" ondblclick="inlineEdit(this)"><b>$10.00</b></td>
+        <td class="editable" data-field="retiro" data-id="10" data-type="number" ondblclick="inlineEdit(this)">$10.00</td>
+        <td class="editable" data-field="ganancia" data-id="10" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$10.00</span></td>
+        <td class="editable" data-field="estado" data-id="10" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="countdown done">Finalizado</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(10)">✎</button>
+          <button class="btn-del" onclick="deleteRow(10)">✕</button>
+        </td>
+      </tr><tr data-id="11">
+        <td class="editable" data-field="asset" data-id="11" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="11" data-type="text" ondblclick="inlineEdit(this)">x 30 Dias</td>
+        <td class="editable" data-field="fecha" data-id="11" data-type="text" ondblclick="inlineEdit(this)">03/02/26</td>
+        <td class="editable" data-field="valor" data-id="11" data-type="number" ondblclick="inlineEdit(this)"><b>$500.00</b></td>
+        <td class="editable" data-field="retiro" data-id="11" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="11" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="11" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown done">Finalizado</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(11)">✎</button>
+          <button class="btn-del" onclick="deleteRow(11)">✕</button>
+        </td>
+      </tr><tr data-id="12">
+        <td class="editable" data-field="asset" data-id="12" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="12" data-type="text" ondblclick="inlineEdit(this)">x 30 Dias</td>
+        <td class="editable" data-field="fecha" data-id="12" data-type="text" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="valor" data-id="12" data-type="number" ondblclick="inlineEdit(this)"><b>$10.00</b></td>
+        <td class="editable" data-field="retiro" data-id="12" data-type="number" ondblclick="inlineEdit(this)">$11.00</td>
+        <td class="editable" data-field="ganancia" data-id="12" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$11.00</span></td>
+        <td class="editable" data-field="estado" data-id="12" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(12)">✎</button>
+          <button class="btn-del" onclick="deleteRow(12)">✕</button>
+        </td>
+      </tr><tr data-id="13">
+        <td class="editable" data-field="asset" data-id="13" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="13" data-type="text" ondblclick="inlineEdit(this)">x 30 Dias</td>
+        <td class="editable" data-field="fecha" data-id="13" data-type="text" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="valor" data-id="13" data-type="number" ondblclick="inlineEdit(this)"><b>$200.00</b></td>
+        <td class="editable" data-field="retiro" data-id="13" data-type="number" ondblclick="inlineEdit(this)">$207.00</td>
+        <td class="editable" data-field="ganancia" data-id="13" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$207.00</span></td>
+        <td class="editable" data-field="estado" data-id="13" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status ok">ok</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(13)">✎</button>
+          <button class="btn-del" onclick="deleteRow(13)">✕</button>
+        </td>
+      </tr><tr data-id="21">
+        <td class="editable" data-field="asset" data-id="21" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="21" data-type="text" ondblclick="inlineEdit(this)">28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="21" data-type="text" ondblclick="inlineEdit(this)">19/05/26</td>
+        <td class="editable" data-field="valor" data-id="21" data-type="number" ondblclick="inlineEdit(this)"><b>$17.00</b></td>
+        <td class="editable" data-field="retiro" data-id="21" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="21" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="21" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">10d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(21)">✎</button>
+          <button class="btn-del" onclick="deleteRow(21)">✕</button>
+        </td>
+      </tr><tr data-id="22">
+        <td class="editable" data-field="asset" data-id="22" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="22" data-type="text" ondblclick="inlineEdit(this)">28 Dias</td>
+        <td class="editable" data-field="fecha" data-id="22" data-type="text" ondblclick="inlineEdit(this)">19/05/26</td>
+        <td class="editable" data-field="valor" data-id="22" data-type="number" ondblclick="inlineEdit(this)"><b>$25.00</b></td>
+        <td class="editable" data-field="retiro" data-id="22" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="22" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="22" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">10d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(22)">✎</button>
+          <button class="btn-del" onclick="deleteRow(22)">✕</button>
+        </td>
+      </tr><tr data-id="23">
+        <td class="editable" data-field="asset" data-id="23" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="23" data-type="text" ondblclick="inlineEdit(this)">60 Dias</td>
+        <td class="editable" data-field="fecha" data-id="23" data-type="text" ondblclick="inlineEdit(this)">24/05/26</td>
+        <td class="editable" data-field="valor" data-id="23" data-type="number" ondblclick="inlineEdit(this)"><b>$20.00</b></td>
+        <td class="editable" data-field="retiro" data-id="23" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="23" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="23" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">47d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(23)">✎</button>
+          <button class="btn-del" onclick="deleteRow(23)">✕</button>
+        </td>
+      </tr><tr data-id="24">
+        <td class="editable" data-field="asset" data-id="24" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="24" data-type="text" ondblclick="inlineEdit(this)">144 Dias</td>
+        <td class="editable" data-field="fecha" data-id="24" data-type="text" ondblclick="inlineEdit(this)">24/05/26</td>
+        <td class="editable" data-field="valor" data-id="24" data-type="number" ondblclick="inlineEdit(this)"><b>$20.00</b></td>
+        <td class="editable" data-field="retiro" data-id="24" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="24" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="24" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">131d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(24)">✎</button>
+          <button class="btn-del" onclick="deleteRow(24)">✕</button>
+        </td>
+      </tr><tr data-id="25">
+        <td class="editable" data-field="asset" data-id="25" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="25" data-type="text" ondblclick="inlineEdit(this)">144 Dias</td>
+        <td class="editable" data-field="fecha" data-id="25" data-type="text" ondblclick="inlineEdit(this)">19/05/26</td>
+        <td class="editable" data-field="valor" data-id="25" data-type="number" ondblclick="inlineEdit(this)"><b>$17.00</b></td>
+        <td class="editable" data-field="retiro" data-id="25" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="25" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="25" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">126d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(25)">✎</button>
+          <button class="btn-del" onclick="deleteRow(25)">✕</button>
+        </td>
+      </tr><tr data-id="26">
+        <td class="editable" data-field="asset" data-id="26" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="26" data-type="text" ondblclick="inlineEdit(this)">144 Dias</td>
+        <td class="editable" data-field="fecha" data-id="26" data-type="text" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="valor" data-id="26" data-type="number" ondblclick="inlineEdit(this)"><b>$200.00</b></td>
+        <td class="editable" data-field="retiro" data-id="26" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="26" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="26" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(26)">✎</button>
+          <button class="btn-del" onclick="deleteRow(26)">✕</button>
+        </td>
+      </tr><tr data-id="27">
+        <td class="editable" data-field="asset" data-id="27" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="27" data-type="text" ondblclick="inlineEdit(this)">60 Dias</td>
+        <td class="editable" data-field="fecha" data-id="27" data-type="text" ondblclick="inlineEdit(this)">31/05/26</td>
+        <td class="editable" data-field="valor" data-id="27" data-type="number" ondblclick="inlineEdit(this)"><b>$22.00</b></td>
+        <td class="editable" data-field="retiro" data-id="27" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="27" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="27" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">54d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(27)">✎</button>
+          <button class="btn-del" onclick="deleteRow(27)">✕</button>
+        </td>
+      </tr>
+          <tr class="totals-row">
+            <td colspan="3" style="color:var(--muted);font-size:10px;letter-spacing:2px;">TOTALES</td>
+            <td><b>$1119.00</b></td><td>—</td>
+            <td>$306.00</td>
+            <td><span class="gain">+$306.00</span></td>
+            <td></td><td></td><td></td><td></td>
+          </tr>
+        </tbody>
+      </table></div></div><div class="platform-section marsses" style="animation-delay: 0.16s;">
+      <div class="platform-header">
+        <div class="platform-name" style="--p-color:#f7c948"><span class="platform-dot"></span> Marsses</div>
+        <div class="platform-stats">
+          <span>Invertido <b>$25.00</b></span>
+          <span>Retiro <b>—</b></span>
+          <span>Ganancia <b class="gain">+$10.00</b></span>
+          <span>Pendientes <b>0</b></span>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Activo</th><th>Plazo</th><th>Fecha</th><th>Valor Invertido</th><th>Retiro Total</th><th>Ganancia</th><th>Estado</th><th>Vence en</th><th></th></tr></thead>
+        <tbody>
+          <tr data-id="14">
+        <td class="editable" data-field="asset" data-id="14" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="14" data-type="text" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="fecha" data-id="14" data-type="text" ondblclick="inlineEdit(this)">07/02/26</td>
+        <td class="editable" data-field="valor" data-id="14" data-type="number" ondblclick="inlineEdit(this)"><b>$25.00</b></td>
+        <td class="editable" data-field="retiro" data-id="14" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="14" data-type="number" ondblclick="inlineEdit(this)"><span class="gain">+$10.00</span></td>
+        <td class="editable" data-field="estado" data-id="14" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(14)">✎</button>
+          <button class="btn-del" onclick="deleteRow(14)">✕</button>
+        </td>
+      </tr>
+          <tr class="totals-row">
+            <td colspan="3" style="color:var(--muted);font-size:10px;letter-spacing:2px;">TOTALES</td>
+            <td><b>$25.00</b></td><td>—</td>
+            <td>—</td>
+            <td><span class="gain">+$10.00</span></td>
+            <td></td><td></td><td></td><td></td>
+          </tr>
+        </tbody>
+      </table></div></div><div class="platform-section bitradex" style="animation-delay: 0.24s;">
+      <div class="platform-header">
+        <div class="platform-name" style="--p-color:#ff6b6b"><span class="platform-dot"></span> Bitradex</div>
+        <div class="platform-stats">
+          <span>Invertido <b>$437.00</b></span>
+          <span>Retiro <b>—</b></span>
+          <span>Ganancia <b class="neutral">+$0.00</b></span>
+          <span>Pendientes <b>1</b></span>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Activo</th><th>Plazo</th><th>Fecha</th><th>Valor Invertido</th><th>Retiro Total</th><th>Ganancia</th><th>Estado</th><th>Vence en</th><th></th></tr></thead>
+        <tbody>
+          <tr data-id="15">
+        <td class="editable" data-field="asset" data-id="15" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="15" data-type="text" ondblclick="inlineEdit(this)">360</td>
+        <td class="editable" data-field="fecha" data-id="15" data-type="text" ondblclick="inlineEdit(this)">03/02/26</td>
+        <td class="editable" data-field="valor" data-id="15" data-type="number" ondblclick="inlineEdit(this)"><b>$110.00</b></td>
+        <td class="editable" data-field="retiro" data-id="15" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="15" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="15" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">237d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(15)">✎</button>
+          <button class="btn-del" onclick="deleteRow(15)">✕</button>
+        </td>
+      </tr><tr data-id="16">
+        <td class="editable" data-field="asset" data-id="16" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">USDC</span></td>
+        <td class="editable" data-field="plazo" data-id="16" data-type="text" ondblclick="inlineEdit(this)">Diary</td>
+        <td class="editable" data-field="fecha" data-id="16" data-type="text" ondblclick="inlineEdit(this)">03/02/26</td>
+        <td class="editable" data-field="valor" data-id="16" data-type="number" ondblclick="inlineEdit(this)"><b>$114.00</b></td>
+        <td class="editable" data-field="retiro" data-id="16" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="16" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="16" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(16)">✎</button>
+          <button class="btn-del" onclick="deleteRow(16)">✕</button>
+        </td>
+      </tr><tr data-id="17">
+        <td class="editable" data-field="asset" data-id="17" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag bnb">BNB</span></td>
+        <td class="editable" data-field="plazo" data-id="17" data-type="text" ondblclick="inlineEdit(this)">360</td>
+        <td class="editable" data-field="fecha" data-id="17" data-type="text" ondblclick="inlineEdit(this)">03/03/26</td>
+        <td class="editable" data-field="valor" data-id="17" data-type="number" ondblclick="inlineEdit(this)"><b>$111.00</b></td>
+        <td class="editable" data-field="retiro" data-id="17" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="17" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="17" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">265d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(17)">✎</button>
+          <button class="btn-del" onclick="deleteRow(17)">✕</button>
+        </td>
+      </tr><tr data-id="20">
+        <td class="editable" data-field="asset" data-id="20" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag ">ETH</span></td>
+        <td class="editable" data-field="plazo" data-id="20" data-type="text" ondblclick="inlineEdit(this)">360 Dias</td>
+        <td class="editable" data-field="fecha" data-id="20" data-type="text" ondblclick="inlineEdit(this)">16/05/26</td>
+        <td class="editable" data-field="valor" data-id="20" data-type="number" ondblclick="inlineEdit(this)"><b>$102.00</b></td>
+        <td class="editable" data-field="retiro" data-id="20" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="20" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="20" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown ok">339d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(20)">✎</button>
+          <button class="btn-del" onclick="deleteRow(20)">✕</button>
+        </td>
+      </tr>
+          <tr class="totals-row">
+            <td colspan="3" style="color:var(--muted);font-size:10px;letter-spacing:2px;">TOTALES</td>
+            <td><b>$437.00</b></td><td>—</td>
+            <td>—</td>
+            <td><span class="neutral">+$0.00</span></td>
+            <td></td><td></td><td></td><td></td>
+          </tr>
+        </tbody>
+      </table></div></div><div class="platform-section merax" style="animation-delay: 0.32s;">
+      <div class="platform-header">
+        <div class="platform-name" style="--p-color:#d47cff"><span class="platform-dot"></span> MeraX</div>
+        <div class="platform-stats">
+          <span>Invertido <b>$20.00</b></span>
+          <span>Retiro <b>—</b></span>
+          <span>Ganancia <b class="neutral">+$0.00</b></span>
+          <span>Pendientes <b>1</b></span>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Activo</th><th>Plazo</th><th>Fecha</th><th>Valor Invertido</th><th>Retiro Total</th><th>Ganancia</th><th>Estado</th><th>Vence en</th><th></th></tr></thead>
+        <tbody>
+          <tr data-id="30">
+        <td class="editable" data-field="asset" data-id="30" data-type="sel-asset" ondblclick="inlineEdit(this)"><span class="asset-tag usdt">USDT</span></td>
+        <td class="editable" data-field="plazo" data-id="30" data-type="text" ondblclick="inlineEdit(this)">1</td>
+        <td class="editable" data-field="fecha" data-id="30" data-type="text" ondblclick="inlineEdit(this)">06/06/26</td>
+        <td class="editable" data-field="valor" data-id="30" data-type="number" ondblclick="inlineEdit(this)"><b>$20.00</b></td>
+        <td class="editable" data-field="retiro" data-id="30" data-type="number" ondblclick="inlineEdit(this)">—</td>
+        <td class="editable" data-field="ganancia" data-id="30" data-type="number" ondblclick="inlineEdit(this)"><span class="neutral">—</span></td>
+        <td class="editable" data-field="estado" data-id="30" data-type="sel-estado" ondblclick="inlineEdit(this)"><span class="status pendiente">Pendiente</span></td>
+        <td style="white-space:nowrap"><span class="countdown urgent">1d</span></td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(30)">✎</button>
+          <button class="btn-del" onclick="deleteRow(30)">✕</button>
+        </td>
+      </tr>
+          <tr class="totals-row">
+            <td colspan="3" style="color:var(--muted);font-size:10px;letter-spacing:2px;">TOTALES</td>
+            <td><b>$20.00</b></td><td>—</td>
+            <td>—</td>
+            <td><span class="neutral">+$0.00</span></td>
+            <td></td><td></td><td></td><td></td>
+          </tr>
+        </tbody>
+      </table></div></div></div>
+
+  <div class="add-section">
+    <h2>Nueva Inversión</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label>Activo</label>
+        <select id="f-asset"><option>USDC</option><option>USDT</option><option>BNB</option><option>BTC</option><option>ETH</option></select>
+      </div>
+      <div class="field">
+        <label>Plataforma</label>
+        <select id="f-platform"><option>Bitnest</option><option>Cyrus Finance</option><option>Marsses</option><option>Bitradex</option><option>MeraX</option><option>Otra</option></select>
+      </div>
+      <div class="field"><label>Plazo</label><input id="f-plazo" type="text" placeholder="ej. x 28 dias"></div>
+      <div class="field"><label>Fecha</label><input id="f-fecha" type="date"></div>
+      <div class="field"><label>Valor Invertido ($)</label><input id="f-valor" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>Retiro Total ($)</label><input id="f-retiro" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>Ganancia ($)</label><input id="f-ganancia" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field">
+        <label>Estado</label>
+        <select id="f-estado"><option>Pendiente</option><option>ok</option><option>reinvertido</option></select>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addInvestment()">+ Agregar Inversión</button>
+  </div>
+
+  <!-- Export bar -->
+  <div class="export-bar">
+    <div class="export-bar-info">
+      <b>⬇ Exportar para GitHub Pages</b><br>
+      Descargá el archivo con tus datos actuales incluidos. Subilo a GitHub y tu sitio se actualiza.
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span class="export-flash" id="export-flash">✓ DESCARGADO</span>
+      <button class="btn-export" onclick="exportHTML()">⬇ Descargar index.html</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">Editar Inversión</div>
+    <div class="modal-sub" id="modal-sub">ID #11  ·  Cyrus Finance  ·  USDT</div>
+    <div class="modal-form-grid">
+      <div class="field"><label>Activo</label>
+        <select id="m-asset"><option>USDC</option><option>USDT</option><option>BNB</option><option>BTC</option><option>ETH</option></select>
+      </div>
+      <div class="field"><label>Plataforma</label>
+        <select id="m-platform"><option>Bitnest</option><option>Cyrus Finance</option><option>Marsses</option><option>Bitradex</option><option>MeraX</option><option>Otra</option></select>
+      </div>
+      <div class="field"><label>Plazo</label><input id="m-plazo" type="text" placeholder="ej. x 28 dias"></div>
+      <div class="field"><label>Fecha (dd/mm/aa)</label><input id="m-fecha" type="text" placeholder="01/01/26"></div>
+      <div class="field"><label>Valor Invertido ($)</label><input id="m-valor" type="number" step="0.01"></div>
+      <div class="field"><label>Retiro Total ($)</label><input id="m-retiro" type="number" step="0.01"></div>
+      <div class="field"><label>Ganancia ($)</label><input id="m-ganancia" type="number" step="0.01"></div>
+      <div class="field"><label>Estado</label>
+        <select id="m-estado"><option value="Pendiente">Pendiente</option><option value="ok">ok</option><option value="reinvertido">reinvertido</option><option value="">(sin estado)</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveModal()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<footer>PORTFOLIO TRACKER — DATOS LOCALES — <span id="today"></span></footer>
+
+<script>
+const defaultData = [
+  {
+    "id": 1,
+    "asset": "USDC",
+    "platform": "Bitnest",
+    "plazo": "x 28 Dias",
+    "fecha": "01/01/26",
+    "valor": 1342.98,
+    "pct": "0.86 x dia",
+    "retiro": 1665.29,
+    "ganancia": 322.32,
+    "estado": "ok"
+  },
+  {
+    "id": 2,
+    "asset": "USDC",
+    "platform": "Bitnest",
+    "plazo": "x 28 Dias",
+    "fecha": "01/01/26",
+    "valor": 361.49,
+    "pct": "0.86 x dia",
+    "retiro": 448.24,
+    "ganancia": 86.76,
+    "estado": "ok"
+  },
+  {
+    "id": 6,
+    "asset": "USDC",
+    "platform": "Bitnest",
+    "plazo": "x 28 Dias",
+    "fecha": "",
+    "valor": 191.08,
+    "pct": "",
+    "retiro": 236.94,
+    "ganancia": 45.86,
+    "estado": "ok"
+  },
+  {
+    "id": 7,
+    "asset": "USDC",
+    "platform": "Bitnest",
+    "plazo": "x 28 Dias",
+    "fecha": "",
+    "valor": 489.35,
+    "pct": "",
+    "retiro": 508.92,
+    "ganancia": 19.57,
+    "estado": "ok"
+  },
+  {
+    "id": 8,
+    "asset": "USDC",
+    "platform": "Bitnest",
+    "plazo": "x 28 Dias",
+    "fecha": "",
+    "valor": 307.92,
+    "pct": "",
+    "retiro": 381.826,
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 9,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "x 30 Dias",
+    "fecha": "03/01/26",
+    "valor": 78,
+    "pct": "",
+    "retiro": 78,
+    "ganancia": 78,
+    "estado": "ok"
+  },
+  {
+    "id": 10,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "x 30 Dias",
+    "fecha": "03/01/26",
+    "valor": 10,
+    "pct": "",
+    "retiro": 10,
+    "ganancia": 10,
+    "estado": "ok"
+  },
+  {
+    "id": 11,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "x 30 Dias",
+    "fecha": "03/02/26",
+    "valor": 500,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 12,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "x 30 Dias",
+    "fecha": "",
+    "valor": 10,
+    "pct": "",
+    "retiro": 11,
+    "ganancia": 11,
+    "estado": "ok"
+  },
+  {
+    "id": 13,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "x 30 Dias",
+    "fecha": "",
+    "valor": 200,
+    "pct": "",
+    "retiro": 207,
+    "ganancia": 207,
+    "estado": "ok"
+  },
+  {
+    "id": 14,
+    "asset": "USDC",
+    "platform": "Marsses",
+    "plazo": "",
+    "fecha": "07/02/26",
+    "valor": 25,
+    "pct": "",
+    "retiro": "",
+    "ganancia": 10,
+    "estado": ""
+  },
+  {
+    "id": 15,
+    "asset": "USDC",
+    "platform": "Bitradex",
+    "plazo": "360",
+    "fecha": "03/02/26",
+    "valor": 110,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": ""
+  },
+  {
+    "id": 16,
+    "asset": "USDC",
+    "platform": "Bitradex",
+    "plazo": "Diary",
+    "fecha": "03/02/26",
+    "valor": 114,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": ""
+  },
+  {
+    "id": 17,
+    "asset": "BNB",
+    "platform": "Bitradex",
+    "plazo": "360",
+    "fecha": "03/03/26",
+    "valor": 111,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": ""
+  },
+  {
+    "id": 18,
+    "asset": "USDC",
+    "platform": "Bitnest",
+    "plazo": "28 Dias",
+    "fecha": "11/05/26",
+    "valor": 236.94,
+    "pct": "",
+    "retiro": 293.808,
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 19,
+    "asset": "USDC",
+    "platform": "Bitnest",
+    "plazo": "28 Dias",
+    "fecha": "16/05/26",
+    "valor": 202.827,
+    "pct": "",
+    "retiro": 251.505,
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 20,
+    "asset": "ETH",
+    "platform": "Bitradex",
+    "plazo": "360 Dias",
+    "fecha": "16/05/26",
+    "valor": 102,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 21,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "28 Dias",
+    "fecha": "19/05/26",
+    "valor": 17,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 22,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "28 Dias",
+    "fecha": "19/05/26",
+    "valor": 25,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 23,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "60 Dias",
+    "fecha": "24/05/26",
+    "valor": 20,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 24,
+    "asset": "USDC",
+    "platform": "Cyrus Finance",
+    "plazo": "144 Dias",
+    "fecha": "24/05/26",
+    "valor": 20,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 25,
+    "asset": "USDC",
+    "platform": "Cyrus Finance",
+    "plazo": "144 Dias",
+    "fecha": "19/05/26",
+    "valor": 17,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 26,
+    "asset": "USDC",
+    "platform": "Cyrus Finance",
+    "plazo": "144 Dias",
+    "fecha": "",
+    "valor": 200,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 27,
+    "asset": "USDT",
+    "platform": "Cyrus Finance",
+    "plazo": "60 Dias",
+    "fecha": "31/05/26",
+    "valor": 22,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 28,
+    "asset": "USDT",
+    "platform": "Bitnest",
+    "plazo": "14 Dias",
+    "fecha": "01/06/26",
+    "valor": 97.77,
+    "pct": "",
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  },
+  {
+    "id": 30,
+    "asset": "USDT",
+    "platform": "MeraX",
+    "plazo": "1",
+    "fecha": "06/06/26",
+    "valor": 20,
+    "retiro": "",
+    "ganancia": "",
+    "estado": "Pendiente"
+  }
+];
+
+const PLATFORM_COLORS = {'Bitnest':'#00d4aa','Cyrus Finance':'#7c9ef7','Marsses':'#f7c948','Bitradex':'#ff6b6b','MeraX':'#d47cff'};
+
+let investments = JSON.parse(localStorage.getItem('inv_data') || 'null') || defaultData;
+let nextId = Math.max(...investments.map(i => i.id)) + 1;
+let editingId = null;
+
+function save() { localStorage.setItem('inv_data', JSON.stringify(investments)); }
+
+function fmt(v) {
+  if (v === '' || v === null || v === undefined) return '<span class="neutral">—</span>';
+  const n = parseFloat(v);
+  if (isNaN(n)) return `<span class="neutral">${v}</span>`;
+  return `<span class="${n>0?'gain':n<0?'loss':'neutral'}">${n>=0?'+':''}$${n.toFixed(2)}</span>`;
+}
+
+function statusBadge(s) {
+  if (!s) return '<span class="neutral">—</span>';
+  const cls = s.toLowerCase()==='ok'?'ok':s.toLowerCase()==='pendiente'?'pendiente':'reinvertido';
+  return `<span class="status ${cls}">${s}</span>`;
+}
+
+function assetTag(a) {
+  const cls = a==='USDT'?'usdt':a==='BNB'?'bnb':'';
+  return `<span class="asset-tag ${cls}">${a}</span>`;
+}
+
+// ── COUNTDOWN ─────────────────────────────────────────────────────────────────
+function countdown(fecha, plazo) {
+  if (!fecha || fecha === '—') return '<span class="neutral">—</span>';
+  var parts = fecha.split('/');
+  if (parts.length !== 3) return '<span class="neutral">—</span>';
+  var d = parseInt(parts[0]), m = parseInt(parts[1]), y = parseInt(parts[2]);
+  if (y < 100) y += 2000;
+  var dias = 0;
+  if (plazo) {
+    var match = plazo.match(/\d+/);
+    if (match) dias = parseInt(match[0]);
+  }
+  if (!dias) return '<span class="neutral">—</span>';
+  var start = new Date(y, m-1, d);
+  var end   = new Date(start.getTime() + dias * 86400000);
+  var today = new Date();
+  today.setHours(0,0,0,0);
+  var diff  = Math.round((end - today) / 86400000);
+  if (diff < 0)   return '<span class="countdown done">Finalizado</span>';
+  if (diff === 0) return '<span class="countdown urgent">Hoy!</span>';
+  var cls = diff <= 3 ? 'urgent' : diff <= 7 ? 'soon' : 'ok';
+  return '<span class="countdown ' + cls + '">' + diff + 'd</span>';
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render() {
+  const platforms = [...new Set(investments.map(i => i.platform))];
+  const container = document.getElementById('platforms-container');
+  container.innerHTML = '';
+  let totI=0, totR=0, totG=0, totP=0;
+
+  platforms.forEach((p, idx) => {
+    const rows = investments.filter(i => i.platform === p);
+    const color = PLATFORM_COLORS[p] || '#00d4aa';
+    const pI = rows.reduce((s,r)=>s+(parseFloat(r.valor)||0),0);
+    const pR = rows.reduce((s,r)=>s+(parseFloat(r.retiro)||0),0);
+    const pG = rows.reduce((s,r)=>{const g=parseFloat(r.ganancia);return s+(isNaN(g)?0:g);},0);
+    const pP = rows.filter(r=>r.estado?.toLowerCase()==='pendiente').length;
+    totI+=pI; totR+=pR; totG+=pG; totP+=pP;
+
+    const gainCls = pG>0?'gain':pG<0?'loss':'neutral';
+    const slugMap = {'Bitnest':'bitnest','Cyrus Finance':'cyrus','Marsses':'marsses','Bitradex':'bitradex','MeraX':'merax'};
+
+    const rowsHTML = rows.map(row => {
+      const rv = row.retiro!==''&&row.retiro!==null&&row.retiro!==undefined ? `$${parseFloat(row.retiro).toFixed(2)}` : '—';
+      return `<tr data-id="${row.id}">
+        <td class="editable" data-field="asset"    data-id="${row.id}" data-type="sel-asset"   ondblclick="inlineEdit(this)">${assetTag(row.asset)}</td>
+        <td class="editable" data-field="plazo"    data-id="${row.id}" data-type="text"         ondblclick="inlineEdit(this)">${row.plazo||'<span class="neutral">—</span>'}</td>
+        <td class="editable" data-field="fecha"    data-id="${row.id}" data-type="text"         ondblclick="inlineEdit(this)">${row.fecha||'<span class="neutral">—</span>'}</td>
+        <td class="editable" data-field="valor"    data-id="${row.id}" data-type="number"       ondblclick="inlineEdit(this)"><b>$${parseFloat(row.valor||0).toFixed(2)}</b></td>
+        <td class="editable" data-field="retiro"   data-id="${row.id}" data-type="number"       ondblclick="inlineEdit(this)">${rv}</td>
+        <td class="editable" data-field="ganancia" data-id="${row.id}" data-type="number"       ondblclick="inlineEdit(this)">${fmt(row.ganancia)}</td>
+        <td class="editable" data-field="estado"   data-id="${row.id}" data-type="sel-estado"   ondblclick="inlineEdit(this)">${statusBadge(row.estado)}</td>
+        <td style="white-space:nowrap">${countdown(row.fecha, row.plazo)}</td>
+        <td style="white-space:nowrap"><span class="neutral">—</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-edit" onclick="openModal(${row.id})">✎</button>
+          <button class="btn-del"  onclick="deleteRow(${row.id})">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const sec = document.createElement('div');
+    sec.className = 'platform-section ' + (slugMap[p]||'');
+    sec.style.animationDelay = `${idx*0.08}s`;
+    sec.innerHTML = `
+      <div class="platform-header">
+        <div class="platform-name" style="--p-color:${color}"><span class="platform-dot"></span> ${p}</div>
+        <div class="platform-stats">
+          <span>Invertido <b>$${pI.toFixed(2)}</b></span>
+          <span>Retiro <b>${pR>0?'$'+pR.toFixed(2):'—'}</b></span>
+          <span>Ganancia <b class="${gainCls}">${pG>=0?'+':''}$${pG.toFixed(2)}</b></span>
+          <span>Pendientes <b>${pP}</b></span>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Activo</th><th>Plazo</th><th>Fecha</th><th>Valor Invertido</th><th>Retiro Total</th><th>Ganancia</th><th>Estado</th><th>Vence en</th><th></th></tr></thead>
+        <tbody>
+          ${rowsHTML}
+          <tr class="totals-row">
+            <td colspan="3" style="color:var(--muted);font-size:10px;letter-spacing:2px;">TOTALES</td>
+            <td><b>$${pI.toFixed(2)}</b></td><td>—</td>
+            <td>${pR>0?'$'+pR.toFixed(2):'—'}</td>
+            <td><span class="${gainCls}">${pG>=0?'+':''}$${pG.toFixed(2)}</span></td>
+            <td></td><td></td><td></td><td></td>
+          </tr>
+        </tbody>
+      </table></div>`;
+    container.appendChild(sec);
+  });
+
+  const gainOk = investments.filter(r=>r.estado?.toLowerCase()==='ok')
+    .reduce((s,r)=>{const g=parseFloat(r.ganancia);return s+(isNaN(g)?0:g);},0);
+
+  document.getElementById('sum-invested').textContent = '$'+totI.toFixed(2);
+  document.getElementById('sum-retiro').textContent   = totR>0?'$'+totR.toFixed(2):'—';
+  document.getElementById('sum-gain').textContent     = (gainOk>=0?'+':'')+'$'+gainOk.toFixed(2);
+  document.getElementById('sum-pending').textContent  = totP;
+  document.getElementById('sum-platforms').textContent= platforms.length;
+  document.getElementById('grand-total').textContent  = '$'+totG.toFixed(2);
+}
+
+// ── INLINE EDIT ───────────────────────────────────────────────────────────────
+function inlineEdit(td) {
+  if (td.classList.contains('editing')) return;
+  td.classList.add('editing');
+
+  const field = td.dataset.field;
+  const type  = td.dataset.type;
+  const id    = parseInt(td.dataset.id);
+  const row   = investments.find(i => i.id === id);
+  const origHTML = td.innerHTML;
+  let inp;
+
+  if (type === 'sel-asset') {
+    inp = document.createElement('select');
+    inp.className = 'inline-sel';
+    ['USDC','USDT','BNB','BTC','ETH'].forEach(v => {
+      const o = new Option(v,v);
+      if (v === row[field]) o.selected = true;
+      inp.appendChild(o);
+    });
+  } else if (type === 'sel-estado') {
+    inp = document.createElement('select');
+    inp.className = 'inline-sel';
+    [['Pendiente','Pendiente'],['ok','ok'],['reinvertido','reinvertido'],['','(sin estado)']].forEach(([v,l]) => {
+      const o = new Option(l,v);
+      if (v === (row[field]||'')) o.selected = true;
+      inp.appendChild(o);
+    });
+  } else {
+    inp = document.createElement('input');
+    inp.type = type === 'number' ? 'number' : 'text';
+    inp.step = '0.01';
+    inp.value = (row[field] !== '' && row[field] !== null && row[field] !== undefined) ? row[field] : '';
+    inp.style.cssText = 'background:transparent;border:none;outline:none;color:var(--text);font-family:inherit;font-size:12px;width:100%;min-width:80px;';
+  }
+
+  td.innerHTML = '';
+  td.appendChild(inp);
+  inp.focus();
+  if (inp.select) inp.select();
+
+  const commit = () => {
+    let val = inp.value;
+    if (type === 'number') val = val === '' ? '' : parseFloat(val);
+    row[field] = val;
+    save();
+    td.classList.remove('editing');
+    render();
+  };
+  const cancel = () => {
+    td.classList.remove('editing');
+    td.innerHTML = origHTML;
+    // re-attach dblclick after restore
+    td.ondblclick = () => inlineEdit(td);
+  };
+
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  if (type.startsWith('sel')) {
+    inp.addEventListener('change', commit);
+    inp.addEventListener('blur', commit);
+  } else {
+    inp.addEventListener('blur', commit);
+  }
+}
+
+// ── DELETE ────────────────────────────────────────────────────────────────────
+function deleteRow(id) {
+  if (!confirm('¿Eliminar esta inversión?')) return;
+  investments = investments.filter(i => i.id !== id);
+  save(); render();
+}
+
+// ── ADD ───────────────────────────────────────────────────────────────────────
+function addInvestment() {
+  const g = id => document.getElementById(id).value.trim();
+  const valor = parseFloat(g('f-valor'));
+  if (!valor) { alert('Ingresá el valor invertido.'); return; }
+
+  const retiro   = g('f-retiro')   ? parseFloat(g('f-retiro'))   : '';
+  const ganancia = g('f-ganancia') ? parseFloat(g('f-ganancia')) : '';
+  const fr = g('f-fecha');
+  let fecha = '';
+  if (fr) {
+    const d = new Date(fr + 'T12:00:00');
+    fecha = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(2)}`;
+  }
+
+  investments.push({id:nextId++, asset:g('f-asset'), platform:g('f-platform'),
+    plazo:g('f-plazo'), fecha, valor, retiro, ganancia, estado:g('f-estado')});
+  save(); render();
+  ['f-plazo','f-fecha','f-valor','f-retiro','f-ganancia'].forEach(id => document.getElementById(id).value='');
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  const row = investments.find(i => i.id === id);
+  if (!row) return;
+  editingId = id;
+  document.getElementById('modal-sub').textContent = `ID #${id}  ·  ${row.platform}  ·  ${row.asset}`;
+  document.getElementById('m-asset').value    = row.asset    || 'USDC';
+  document.getElementById('m-platform').value = row.platform || 'Bitnest';
+  document.getElementById('m-plazo').value    = row.plazo    || '';
+  document.getElementById('m-fecha').value    = row.fecha    || '';
+  document.getElementById('m-valor').value    = row.valor    !== '' ? row.valor    : '';
+  document.getElementById('m-retiro').value   = row.retiro   !== '' ? row.retiro   : '';
+  document.getElementById('m-ganancia').value = row.ganancia !== '' ? row.ganancia : '';
+  document.getElementById('m-estado').value   = row.estado   || '';
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+  editingId = null;
+}
+
+function closeModalOutside(e) {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+}
+
+function saveModal() {
+  const row = investments.find(i => i.id === editingId);
+  if (!row) return;
+  const g = id => document.getElementById(id).value.trim();
+  row.asset    = g('m-asset');
+  row.platform = g('m-platform');
+  row.plazo    = g('m-plazo');
+  row.fecha    = g('m-fecha');
+  row.valor    = g('m-valor')    ? parseFloat(g('m-valor'))    : '';
+  row.retiro   = g('m-retiro')   ? parseFloat(g('m-retiro'))   : '';
+  row.ganancia = g('m-ganancia') ? parseFloat(g('m-ganancia')) : '';
+  row.estado   = g('m-estado');
+  save(); closeModal(); render();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function exportHTML() {
+  // Snapshot current investments into the defaultData of the exported file
+  // so it loads correctly even on a fresh browser without localStorage
+  const dataJSON = JSON.stringify(investments, null, 2);
+
+  // Get full page source and swap in current data
+  const src = document.documentElement.outerHTML;
+  const exported = src.replace(
+    /const defaultData = \[[\s\S]*?\];/,
+    'const defaultData = ' + dataJSON + ';'
+  );
+
+  const blob = new Blob([exported], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'index.html';
+  a.click();
+  URL.revokeObjectURL(url);
+
+  const flash = document.getElementById('export-flash');
+  flash.classList.add('show');
+  setTimeout(() => flash.classList.remove('show'), 2500);
+}
+
+render();
+
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+// ⚠️  Cambiá estas dos líneas antes de publicar:
+const AUTH_USER = 'admin';
+const AUTH_PASS = 'admin123';
+
+let isAuth = sessionStorage.getItem('inv_auth') === '1';
+
+function applyAuthState() {
+  const screen = document.getElementById('login-screen');
+  const badge  = document.getElementById('user-badge');
+  const buser  = document.getElementById('badge-user');
+  if (isAuth) {
+    screen.style.display = 'none';
+    document.body.classList.remove('guest');
+    buser.textContent = AUTH_USER;
+    badge.classList.add('visible');
+  } else {
+    screen.style.display = 'flex';
+    document.body.classList.add('guest');
+    badge.classList.remove('visible');
+    setTimeout(() => { const u = document.getElementById('l-user'); if(u) u.focus(); }, 120);
+  }
+}
+
+function doLogin() {
+  const u   = document.getElementById('l-user').value.trim();
+  const p   = document.getElementById('l-pass').value;
+  const err = document.getElementById('login-error');
+  if (u === AUTH_USER && p === AUTH_PASS) {
+    isAuth = true;
+    sessionStorage.setItem('inv_auth', '1');
+    err.classList.add('hidden');
+    applyAuthState();
+  } else {
+    err.classList.remove('hidden');
+    document.getElementById('l-pass').value = '';
+    document.getElementById('l-pass').focus();
+    const box = document.getElementById('login-box');
+    box.style.animation = 'none';
+    void box.offsetHeight;
+    box.style.animation = 'shake 0.4s ease';
+  }
+}
+
+function doLogout() {
+  isAuth = false;
+  sessionStorage.removeItem('inv_auth');
+  document.getElementById('l-user').value = '';
+  document.getElementById('l-pass').value = '';
+  applyAuthState();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('l-user').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('l-pass').focus(); });
+  document.getElementById('l-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  applyAuthState();
+});
